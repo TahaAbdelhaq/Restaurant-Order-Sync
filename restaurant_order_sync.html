@@ -1,0 +1,1504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SynchroDine - Real-Time Multi-Role Order Tracker</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Phosphor Icons CDN -->
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <!-- Tone.js for clean in-browser audio indicators -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#fff7ed',
+              100: '#ffedd5',
+              500: '#f97316',
+              600: '#ea580c',
+              700: '#c2410c'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+    
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .font-mono-num {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(156, 163, 175, 0.4);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(107, 114, 128, 0.6);
+    }
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    .animate-pulse-subtle {
+      animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-orange-500 selection:text-white">
+
+  <!-- Header / Navigation Bar -->
+  <header class="bg-slate-900/95 border-b border-slate-800 sticky top-0 z-40 backdrop-blur-md px-3 sm:px-6 py-2.5">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <!-- App Brand & Live Status -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-600 via-amber-500 to-yellow-400 flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
+          <i class="ph-bold ph-fork-knife text-xl"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-extrabold text-lg leading-tight text-white tracking-tight">SynchroDine</h1>
+            <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              Mesh Active
+            </span>
+          </div>
+          <p class="text-xs text-slate-400">Zero-Refresh Multi-Role Order Mesh</p>
+        </div>
+      </div>
+
+      <!-- Center: Role Switcher Tabs (Cashier, Kitchen, Customer, Split-Simulator) -->
+      <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs sm:text-sm font-semibold">
+        <button id="role-cashier-btn" onclick="setRole('cashier')" class="role-btn px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 text-slate-400 hover:text-white">
+          <i class="ph-bold ph-receipt text-base"></i>
+          <span>Cashier / POS</span>
+          <span id="badge-cashier-count" class="hidden px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-400 font-bold text-[10px]">0</span>
+        </button>
+        <button id="role-kitchen-btn" onclick="setRole('kitchen')" class="role-btn px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 text-slate-400 hover:text-white">
+          <i class="ph-bold ph-cooking-pot text-base"></i>
+          <span>Kitchen KDS</span>
+          <span id="badge-kitchen-count" class="hidden px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-400 font-bold text-[10px]">0</span>
+        </button>
+        <button id="role-customer-btn" onclick="setRole('customer')" class="role-btn px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 text-slate-400 hover:text-white">
+          <i class="ph-bold ph-device-mobile text-base"></i>
+          <span>Customer Tracker</span>
+        </button>
+        <button id="role-split-btn" onclick="setRole('split')" class="role-btn px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 text-slate-400 hover:text-white">
+          <i class="ph-bold ph-columns text-base"></i>
+          <span class="hidden md:inline">3-Role Live Split</span>
+          <span class="md:hidden">Split</span>
+        </button>
+      </div>
+
+      <!-- Right Controls: Audio chime toggle, Quick demo injection, Reset -->
+      <div class="flex items-center gap-2">
+        <button id="sound-toggle-btn" onclick="toggleSound()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700/60" title="Toggle audio chime">
+          <i id="sound-icon" class="ph-bold ph-speaker-high text-lg text-emerald-400"></i>
+        </button>
+        <button onclick="injectDemoOrder()" class="px-3 py-1.5 rounded-lg bg-orange-600/20 hover:bg-orange-600/30 text-orange-400 border border-orange-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm">
+          <i class="ph-bold ph-sparkle text-sm"></i>
+          <span>+ Quick Order</span>
+        </button>
+        <button onclick="clearAllDataModal()" class="p-2 rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 transition-colors border border-slate-700/60" title="Reset all state">
+          <i class="ph-bold ph-arrow-counter-clockwise text-lg"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Notification Toast Container -->
+  <div id="toast-container" class="fixed top-16 right-4 z-50 flex flex-col gap-2 pointer-events-none w-80"></div>
+
+  <!-- Main Multi-View Content Area -->
+  <main class="flex-1 p-3 sm:p-5 max-w-7xl mx-auto w-full flex flex-col gap-4">
+
+    <!-- Active State Ribbon & Multi-Tab Hint -->
+    <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-900/40 border border-slate-800/80 px-4 py-2.5 rounded-xl text-xs sm:text-sm">
+      <div class="flex items-center gap-2">
+        <span class="text-slate-400">Active View:</span>
+        <span id="role-display-pill" class="font-bold text-orange-400 px-2.5 py-0.5 rounded-lg bg-orange-500/10 border border-orange-500/20 capitalize">Cashier / POS</span>
+        <span class="text-slate-600 hidden sm:inline">|</span>
+        <span class="text-slate-400 text-xs hidden sm:inline">
+          <i class="ph-bold ph-broadcast text-emerald-400 mr-1"></i>Open another tab side-by-side: all updates propagate in real-time with zero delay.
+        </span>
+      </div>
+      <div class="flex items-center gap-4 text-xs font-mono-num text-slate-300">
+        <div>Active: <span id="stat-active" class="font-bold text-white">0</span></div>
+        <div>Completed: <span id="stat-completed" class="font-bold text-emerald-400">0</span></div>
+      </div>
+    </div>
+
+    <!-- VIEW CONTAINER: Dynamically switches or arranges perspectives -->
+    <div id="views-wrapper" class="flex-1 w-full">
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 1: CASHIER / FOH POS -->
+      <!-- ========================================================================= -->
+      <section id="view-cashier" class="role-view grid grid-cols-1 lg:grid-cols-12 gap-5 w-full">
+        <!-- POS Order Creation Panel -->
+        <div class="lg:col-span-5 bg-slate-900/80 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4 shadow-xl">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h2 class="font-bold text-base text-white flex items-center gap-2">
+                <i class="ph-bold ph-receipt text-blue-400"></i> New Order Register
+              </h2>
+              <p class="text-xs text-slate-400">Ring up dishes, specify table or guest, send to KDS</p>
+            </div>
+            <button onclick="resetOrderForm()" class="text-xs text-slate-400 hover:text-white px-2.5 py-1 rounded bg-slate-800">Clear</button>
+          </div>
+
+          <!-- Customer Name & Table Number -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Customer / Guest</label>
+              <div class="relative">
+                <i class="ph-bold ph-user absolute left-3 top-2.5 text-slate-500"></i>
+                <input id="form-customer-name" type="text" placeholder="e.g. Alex M." value="Alex" class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-blue-500 transition-colors">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Table #</label>
+              <div class="relative">
+                <i class="ph-bold ph-chair absolute left-3 top-2.5 text-slate-500"></i>
+                <input id="form-table" type="number" min="1" max="99" value="7" class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-blue-500 transition-colors">
+              </div>
+            </div>
+          </div>
+
+          <!-- Menu Catalog Selection -->
+          <div class="flex flex-col gap-2">
+            <label class="text-xs font-semibold text-slate-300 flex justify-between">
+              <span>Menu Items</span>
+              <span class="text-slate-500 text-[11px]">Click items to add</span>
+            </label>
+            <div id="cashier-menu-catalog" class="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <!-- Ticket Cart Summary -->
+          <div class="flex flex-col gap-2 flex-1">
+            <label class="text-xs font-semibold text-slate-300">Ticket Items (<span id="cart-item-count">0</span>)</label>
+            <div id="cart-list" class="bg-slate-950/80 border border-slate-800/80 rounded-xl p-2.5 min-h-[110px] max-h-44 overflow-y-auto space-y-1.5">
+              <p class="text-xs text-slate-500 text-center py-6">No items selected yet. Select items from above.</p>
+            </div>
+          </div>
+
+          <!-- Kitchen notes & allergies -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Kitchen Notes</label>
+            <input id="form-notes" type="text" placeholder="e.g. Dressing on side, no pickles..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500">
+          </div>
+
+          <!-- Submit Action -->
+          <div class="border-t border-slate-800 pt-3 flex items-center justify-between">
+            <div>
+              <span class="text-xs text-slate-400 block">Total Due</span>
+              <span id="cart-total" class="text-xl font-extrabold text-white font-mono-num">$0.00</span>
+            </div>
+            <button onclick="submitOrderTicket()" class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-blue-600/30 active:scale-95 transition-all">
+              <i class="ph-bold ph-paper-plane-tilt"></i>
+              <span>Send Order (New)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Right: Cashier Orders & Register Ledger -->
+        <div class="lg:col-span-7 flex flex-col gap-4">
+          <div class="flex items-center justify-between bg-slate-900/60 p-3.5 rounded-xl border border-slate-800">
+            <div>
+              <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                <i class="ph-bold ph-list-numbers text-blue-400"></i> Cashier Order Register
+              </h3>
+              <p class="text-xs text-slate-400">Track all orders through their lifecycle and manage billing/cancellations</p>
+            </div>
+            <span class="px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 text-xs font-mono-num" id="cashier-active-counter">0 Active</span>
+          </div>
+
+          <div id="cashier-orders-grid" class="grid grid-cols-1 md:grid-cols-2 gap-3.5 overflow-y-auto max-h-[660px] pr-1">
+            <!-- Dynamic Cashier Cards -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 2: KITCHEN DISPLAY SYSTEM (KDS) -->
+      <!-- ========================================================================= -->
+      <section id="view-kitchen" class="role-view hidden flex-col gap-4 w-full">
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-xl">
+              <i class="ph-bold ph-cooking-pot"></i>
+            </div>
+            <div>
+              <h2 class="font-bold text-base text-white">Kitchen Display System (KDS)</h2>
+              <p class="text-xs text-slate-400">Order cook-line, ticket timers, and expediter pickup</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-xs">
+            <span class="px-3 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 font-semibold">
+              New: <span id="kds-stat-new" class="font-bold">0</span>
+            </span>
+            <span class="px-3 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold">
+              Preparing: <span id="kds-stat-prep" class="font-bold">0</span>
+            </span>
+            <span class="px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
+              Ready: <span id="kds-stat-ready" class="font-bold">0</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- 3-Lane Kitchen Board: New -> In Prep -> Ready -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1">
+          <!-- Col 1: New Orders -->
+          <div class="bg-slate-900/60 border border-slate-800/90 rounded-2xl p-3.5 flex flex-col gap-3 min-h-[460px]">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse"></span>
+                <span class="font-bold text-xs uppercase tracking-wider text-blue-400">1. Incoming / New</span>
+              </div>
+              <span id="kds-lane-new-badge" class="text-xs font-mono-num font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300">0</span>
+            </div>
+            <div id="kds-lane-new" class="space-y-3 flex-1 overflow-y-auto max-h-[640px] pr-1"></div>
+          </div>
+
+          <!-- Col 2: Preparing -->
+          <div class="bg-slate-900/60 border border-slate-800/90 rounded-2xl p-3.5 flex flex-col gap-3 min-h-[460px]">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                <span class="font-bold text-xs uppercase tracking-wider text-amber-400">2. On Fire / Preparing</span>
+              </div>
+              <span id="kds-lane-prep-badge" class="text-xs font-mono-num font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300">0</span>
+            </div>
+            <div id="kds-lane-prep" class="space-y-3 flex-1 overflow-y-auto max-h-[640px] pr-1"></div>
+          </div>
+
+          <!-- Col 3: Ready / Plated -->
+          <div class="bg-slate-900/60 border border-slate-800/90 rounded-2xl p-3.5 flex flex-col gap-3 min-h-[460px]">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                <span class="font-bold text-xs uppercase tracking-wider text-emerald-400">3. Expediter Pass / Ready</span>
+              </div>
+              <span id="kds-lane-ready-badge" class="text-xs font-mono-num font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300">0</span>
+            </div>
+            <div id="kds-lane-ready" class="space-y-3 flex-1 overflow-y-auto max-h-[640px] pr-1"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 3: CUSTOMER ORDER TRACKER VIEW -->
+      <!-- ========================================================================= -->
+      <section id="view-customer" class="role-view hidden flex-col gap-5 w-full max-w-4xl mx-auto">
+        <!-- Order Selector Bar -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+          <div>
+            <h2 class="font-bold text-base text-white flex items-center gap-2">
+              <i class="ph-bold ph-device-mobile text-emerald-400"></i> Live Order Tracker
+            </h2>
+            <p class="text-xs text-slate-400">Select your active order to view real-time status updates</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-xs text-slate-400 font-semibold">Tracking Ticket:</label>
+            <select id="customer-order-select" onchange="changeCustomerActiveOrder(this.value)" class="bg-slate-950 border border-slate-700 text-xs text-white rounded-xl px-3 py-1.5 focus:outline-none focus:border-emerald-500">
+              <!-- Dynamically populated -->
+            </select>
+          </div>
+        </div>
+
+        <!-- Customer Live Tracker Showcase -->
+        <div id="customer-tracker-card" class="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 sm:p-8 flex flex-col gap-8 shadow-2xl relative overflow-hidden">
+          <!-- Dynamic Tracker Content Rendered via JS -->
+        </div>
+      </section>
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 4: MULTI-VIEW 3-ROLE SIMULATOR -->
+      <!-- ========================================================================= -->
+      <section id="view-split" class="role-view hidden grid grid-cols-1 lg:grid-cols-3 gap-4 w-full">
+        <!-- Split Col 1: Cashier Mini Desk -->
+        <div class="bg-slate-900/70 border border-blue-500/20 rounded-2xl p-3.5 flex flex-col gap-3 shadow-md">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span class="font-extrabold text-xs text-blue-400 flex items-center gap-1.5 uppercase">
+              <i class="ph-bold ph-receipt text-sm"></i> Cashier Station
+            </span>
+            <button onclick="injectDemoOrder()" class="text-[10px] text-blue-300 hover:text-white px-2 py-0.5 rounded bg-blue-900/30 border border-blue-500/30">+ New Ticket</button>
+          </div>
+          <div id="split-cashier-stream" class="space-y-3 overflow-y-auto max-h-[640px] pr-1"></div>
+        </div>
+
+        <!-- Split Col 2: Kitchen KDS Mini Desk -->
+        <div class="bg-slate-900/70 border border-amber-500/20 rounded-2xl p-3.5 flex flex-col gap-3 shadow-md">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span class="font-extrabold text-xs text-amber-400 flex items-center gap-1.5 uppercase">
+              <i class="ph-bold ph-cooking-pot text-sm"></i> Kitchen Station
+            </span>
+            <span class="text-[10px] text-slate-400 font-mono-num" id="split-kds-counter">0 Active</span>
+          </div>
+          <div id="split-kitchen-stream" class="space-y-3 overflow-y-auto max-h-[640px] pr-1"></div>
+        </div>
+
+        <!-- Split Col 3: Customer Tracker Mini Desk -->
+        <div class="bg-slate-900/70 border border-emerald-500/20 rounded-2xl p-3.5 flex flex-col gap-3 shadow-md">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span class="font-extrabold text-xs text-emerald-400 flex items-center gap-1.5 uppercase">
+              <i class="ph-bold ph-device-mobile text-sm"></i> Customer Screen
+            </span>
+            <span class="text-[10px] text-slate-400" id="split-customer-label">Live Tracker</span>
+          </div>
+          <div id="split-customer-stream" class="space-y-3 overflow-y-auto max-h-[640px] pr-1"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Live Synchronized Audit Trail -->
+    <section class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 shadow-md">
+      <div class="flex items-center justify-between cursor-pointer" onclick="toggleAuditFeed()">
+        <div class="flex items-center gap-2.5">
+          <div class="w-7 h-7 rounded-lg bg-slate-800 text-slate-300 flex items-center justify-center text-sm">
+            <i class="ph-bold ph-clock-counter-clockwise"></i>
+          </div>
+          <div>
+            <h3 class="text-xs font-bold text-white uppercase tracking-wider">Synchronized Audit Trail</h3>
+            <p class="text-[11px] text-slate-400">Verifiable state transition events broadcast across all tabs and devices</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="audit-count" class="text-xs font-mono-num font-bold text-slate-400 px-2 py-0.5 rounded bg-slate-800">0 events</span>
+          <i id="audit-caret" class="ph-bold ph-caret-down text-slate-400 transition-transform"></i>
+        </div>
+      </div>
+
+      <div id="audit-feed-wrapper" class="mt-3 pt-3 border-t border-slate-800/60">
+        <div id="audit-feed-list" class="space-y-2 max-h-40 overflow-y-auto pr-1 text-xs font-mono-num">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Interactive Custom Confirm Modal -->
+  <div id="modal-container" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 max-w-sm w-full rounded-2xl p-5 shadow-2xl space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-xl">
+          <i class="ph-bold ph-warning-circle"></i>
+        </div>
+        <div>
+          <h4 id="modal-title" class="font-bold text-white text-base">Confirm Action</h4>
+          <p id="modal-desc" class="text-xs text-slate-400">Are you sure you want to proceed?</p>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold">Cancel</button>
+        <button id="modal-confirm-btn" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Logic -->
+  <script>
+    /* =========================================================================
+     * 1. STATE DEFINITIONS & BROADCAST CHANNEL
+     * ========================================================================= */
+    const STORAGE_KEY_ORDERS = 'synchrodine_orders_v2';
+    const STORAGE_KEY_AUDIT = 'synchrodine_audit_v2';
+    const BROADCAST_CHANNEL_NAME = 'restaurant_orders_sync';
+
+    // BroadcastChannel instance for zero-refresh inter-tab sync
+    let syncChannel;
+    try {
+      syncChannel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
+    } catch (e) {
+      console.warn('BroadcastChannel not supported or restricted, falling back to storage listener', e);
+    }
+
+    // Role state
+    let currentRole = 'cashier'; // 'cashier' | 'kitchen' | 'customer' | 'split'
+    let selectedCustomerId = null; // Currently tracked order ID for Customer View
+    let soundEnabled = true;
+    let auditFeedExpanded = true;
+
+    // Menu Catalog
+    const MENU_CATALOG = [
+      { id: 'm1', name: 'Smash Burger Deluxe', price: 14.50, icon: 'ph-hamburger' },
+      { id: 'm2', name: 'Margherita Pizza', price: 16.00, icon: 'ph-pizza' },
+      { id: 'm3', name: 'Parmesan Truffle Fries', price: 7.50, icon: 'ph-french-fries' },
+      { id: 'm4', name: 'Crispy Buffalo Wings', price: 12.00, icon: 'ph-fire' },
+      { id: 'm5', name: 'Artisanal Lemonade', price: 4.50, icon: 'ph-brandy' },
+      { id: 'm6', name: 'Craft Espresso', price: 3.50, icon: 'ph-coffee' }
+    ];
+
+    // Lifecycle States & Strict Transition Rules
+    // New -> Preparing -> Ready -> Served (with optional Cancelled)
+    const LIFECYCLE_STAGES = ['new', 'preparing', 'ready', 'served'];
+
+    const VALID_TRANSITIONS = {
+      'new': ['preparing', 'cancelled'],
+      'preparing': ['ready', 'cancelled'],
+      'ready': ['served', 'cancelled'],
+      'served': [],
+      'cancelled': []
+    };
+
+    let currentCart = {}; // { itemId: quantity }
+
+    /* =========================================================================
+     * 2. AUDIO SYNTHESIS VIA TONE.JS / WEB AUDIO (No external URLs)
+     * ========================================================================= */
+    let synth = null;
+    function initSynth() {
+      if (!synth && window.Tone) {
+        try {
+          synth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: 'triangle' },
+            envelope: { attack: 0.02, decay: 0.12, sustain: 0.2, release: 0.3 }
+          }).toDestination();
+          synth.volume.value = -7;
+        } catch (e) {
+          console.warn('Audio synthesis init exception', e);
+        }
+      }
+    }
+
+    function playSound(type) {
+      if (!soundEnabled) return;
+      initSynth();
+      if (window.Tone && Tone.context.state !== 'running') {
+        Tone.start().catch(() => {});
+      }
+      try {
+        const now = Tone.now();
+        if (type === 'new') {
+          // Cashier order placed chime (friendly major third)
+          synth.triggerAttackRelease(['C5', 'E5'], '16n', now);
+        } else if (type === 'preparing') {
+          // Kitchen prep started (subtle double tap)
+          synth.triggerAttackRelease(['D4', 'G4'], '16n', now);
+        } else if (type === 'ready') {
+          // Kitchen Order Ready Ding (bright service bell chime)
+          synth.triggerAttackRelease(['E5', 'B5', 'E6'], '8n', now);
+        } else if (type === 'served') {
+          // Order Served Celebration arpeggio
+          synth.triggerAttackRelease(['C5', 'E5', 'G5', 'C6'], '12n', now);
+        } else if (type === 'cancelled') {
+          synth.triggerAttackRelease(['F4', 'C4'], '8n', now);
+        }
+      } catch (e) {
+        // Safe silence
+      }
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      const icon = document.getElementById('sound-icon');
+      if (soundEnabled) {
+        icon.className = 'ph-bold ph-speaker-high text-lg text-emerald-400';
+        showToast('Audio alerts enabled', 'info');
+        initSynth();
+      } else {
+        icon.className = 'ph-bold ph-speaker-slash text-lg text-slate-500';
+        showToast('Audio alerts muted', 'info');
+      }
+    }
+
+    /* =========================================================================
+     * 3. DATA PERSISTENCE & MULTI-TAB MESH (ZERO REFRESH)
+     * ========================================================================= */
+    function getStoredOrders() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_ORDERS);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function getStoredAudit() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_AUDIT);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveState(orders, audit, broadcastEvent = null) {
+      try {
+        localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(orders));
+        if (audit) {
+          localStorage.setItem(STORAGE_KEY_AUDIT, JSON.stringify(audit));
+        }
+      } catch (e) {
+        console.error('Storage error', e);
+      }
+
+      // Propagate instantly via BroadcastChannel
+      if (broadcastEvent && syncChannel) {
+        try {
+          syncChannel.postMessage(broadcastEvent);
+        } catch (err) {
+          console.warn('Channel dispatch failed', err);
+        }
+      }
+    }
+
+    // Inter-tab BroadcastChannel listener
+    if (syncChannel) {
+      syncChannel.onmessage = (event) => {
+        const data = event.data;
+        if (!data) return;
+
+        if (data.type === 'STATE_TRANSITION') {
+          showToast(`Order #${data.orderId} moved to ${data.newState.toUpperCase()} by ${data.actor}`, 'info');
+          playSound(data.newState);
+        } else if (data.type === 'NEW_ORDER') {
+          showToast(`New Order #${data.orderId} received for ${data.customer}!`, 'success');
+          playSound('new');
+        } else if (data.type === 'RESET') {
+          showToast('System state reset across all windows', 'info');
+        }
+
+        renderAll();
+      };
+    }
+
+    // Storage event fallback for older windows
+    window.addEventListener('storage', (e) => {
+      if (e.key === STORAGE_KEY_ORDERS || e.key === STORAGE_KEY_AUDIT) {
+        renderAll();
+      }
+    });
+
+    /* =========================================================================
+     * 4. STATE MACHINE TRANSITIONS & AUDIT LOGGING
+     * ========================================================================= */
+    function advanceOrderState(orderId, targetState, roleActor) {
+      const orders = getStoredOrders();
+      const order = orders.find(o => o.id === orderId);
+
+      if (!order) {
+        showToast('Order not found', 'error');
+        return false;
+      }
+
+      const allowed = VALID_TRANSITIONS[order.status] || [];
+      if (!allowed.includes(targetState)) {
+        showToast(`Invalid transition from ${order.status.toUpperCase()} to ${targetState.toUpperCase()}`, 'error');
+        return false;
+      }
+
+      const prev = order.status;
+      order.status = targetState;
+      order.updatedAt = Date.now();
+
+      if (targetState === 'preparing') order.preparingAt = Date.now();
+      if (targetState === 'ready') order.readyAt = Date.now();
+      if (targetState === 'served') order.servedAt = Date.now();
+
+      // Log to synchronized audit trail
+      const audit = getStoredAudit();
+      const logText = `Order #${order.id} [Table ${order.table} / ${order.customer}]: changed from ${prev.toUpperCase()} ➔ ${targetState.toUpperCase()}`;
+      audit.unshift({
+        id: 'aud_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+        orderId: order.id,
+        text: logText,
+        role: roleActor,
+        timestamp: Date.now()
+      });
+      if (audit.length > 80) audit.pop();
+
+      saveState(orders, audit, {
+        type: 'STATE_TRANSITION',
+        orderId: order.id,
+        prev: prev,
+        newState: targetState,
+        actor: roleActor,
+        customer: order.customer
+      });
+
+      playSound(targetState);
+      showToast(`Order #${order.id} marked as ${targetState.toUpperCase()}`, 'success');
+      renderAll();
+      return true;
+    }
+
+    /* =========================================================================
+     * 5. POS ORDER BUILDER & MENU ACTIONS
+     * ========================================================================= */
+    function renderMenuCatalog() {
+      const container = document.getElementById('cashier-menu-catalog');
+      if (!container) return;
+
+      container.innerHTML = MENU_CATALOG.map(item => `
+        <button type="button" onclick="addToCart('${item.id}')"
+          class="flex items-center justify-between p-2 rounded-xl bg-slate-950/70 border border-slate-800 hover:border-blue-500/50 hover:bg-slate-800/60 transition-all text-left group">
+          <div class="flex items-center gap-2 overflow-hidden">
+            <div class="w-7 h-7 rounded-lg bg-slate-900 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
+              <i class="ph-bold ${item.icon}"></i>
+            </div>
+            <div class="truncate">
+              <div class="text-xs font-semibold text-slate-200 group-hover:text-blue-300 truncate">${item.name}</div>
+              <div class="text-[10px] text-slate-500 font-mono-num">$${item.price.toFixed(2)}</div>
+            </div>
+          </div>
+          <span class="text-xs font-bold text-slate-400 group-hover:text-blue-400 ml-1">+</span>
+        </button>
+      `).join('');
+    }
+
+    function addToCart(itemId) {
+      currentCart[itemId] = (currentCart[itemId] || 0) + 1;
+      renderCart();
+    }
+
+    function updateCartQty(itemId, delta) {
+      if (!currentCart[itemId]) return;
+      currentCart[itemId] += delta;
+      if (currentCart[itemId] <= 0) {
+        delete currentCart[itemId];
+      }
+      renderCart();
+    }
+
+    function renderCart() {
+      const list = document.getElementById('cart-list');
+      const countEl = document.getElementById('cart-item-count');
+      const totalEl = document.getElementById('cart-total');
+
+      const itemIds = Object.keys(currentCart);
+      let total = 0;
+      let totalQty = 0;
+
+      if (itemIds.length === 0) {
+        list.innerHTML = `<p class="text-xs text-slate-500 text-center py-6">No items selected yet. Select items from above.</p>`;
+        countEl.textContent = '0';
+        totalEl.textContent = '$0.00';
+        return;
+      }
+
+      list.innerHTML = itemIds.map(id => {
+        const item = MENU_CATALOG.find(m => m.id === id);
+        const qty = currentCart[id];
+        const lineTotal = item.price * qty;
+        total += lineTotal;
+        totalQty += qty;
+
+        return `
+          <div class="flex items-center justify-between bg-slate-900/90 px-2.5 py-1.5 rounded-lg border border-slate-800 text-xs">
+            <div class="flex-1 truncate pr-2">
+              <span class="font-semibold text-slate-200">${item.name}</span>
+              <span class="text-[10px] text-slate-500 ml-1 font-mono-num">@ $${item.price.toFixed(2)}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="flex items-center bg-slate-950 rounded-lg border border-slate-800">
+                <button type="button" onclick="updateCartQty('${id}', -1)" class="px-2 py-0.5 text-slate-400 hover:text-white">-</button>
+                <span class="px-1.5 font-bold font-mono-num text-blue-400">${qty}</span>
+                <button type="button" onclick="updateCartQty('${id}', 1)" class="px-2 py-0.5 text-slate-400 hover:text-white">+</button>
+              </div>
+              <span class="font-bold font-mono-num text-slate-200 w-12 text-right">$${lineTotal.toFixed(2)}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      countEl.textContent = totalQty;
+      totalEl.textContent = `$${total.toFixed(2)}`;
+    }
+
+    function resetOrderForm() {
+      currentCart = {};
+      const sampleNames = ['Jordan', 'Taylor', 'Sam', 'Chris', 'Morgan', 'Casey'];
+      document.getElementById('form-customer-name').value = sampleNames[Math.floor(Math.random() * sampleNames.length)];
+      document.getElementById('form-table').value = Math.floor(Math.random() * 15) + 1;
+      document.getElementById('form-notes').value = '';
+      renderCart();
+    }
+
+    function submitOrderTicket() {
+      const customerName = document.getElementById('form-customer-name').value.trim() || 'Guest';
+      const tableVal = parseInt(document.getElementById('form-table').value, 10) || 1;
+      const notesVal = document.getElementById('form-notes').value.trim();
+
+      const itemIds = Object.keys(currentCart);
+      if (itemIds.length === 0) {
+        showToast('Please add at least one item from the menu catalog', 'error');
+        return;
+      }
+
+      const items = itemIds.map(id => {
+        const item = MENU_CATALOG.find(m => m.id === id);
+        return {
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: currentCart[id]
+        };
+      });
+
+      const total = items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+      const orderNum = Math.floor(100 + Math.random() * 900);
+
+      const newOrder = {
+        id: String(orderNum),
+        customer: customerName,
+        table: tableVal,
+        notes: notesVal,
+        items: items,
+        total: total,
+        status: 'new', // Initial Lifecycle State
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+
+      const orders = getStoredOrders();
+      orders.unshift(newOrder);
+
+      const audit = getStoredAudit();
+      audit.unshift({
+        id: 'aud_' + Date.now(),
+        orderId: newOrder.id,
+        text: `New order created: Table ${newOrder.table} (${newOrder.customer}) - $${total.toFixed(2)}`,
+        role: 'Cashier',
+        timestamp: Date.now()
+      });
+
+      saveState(orders, audit, {
+        type: 'NEW_ORDER',
+        orderId: newOrder.id,
+        table: newOrder.table,
+        customer: newOrder.customer,
+        total: newOrder.total
+      });
+
+      selectedCustomerId = newOrder.id; // Switch customer tracker focus
+      playSound('new');
+      showToast(`Order #${newOrder.id} dispatched!`, 'success');
+
+      resetOrderForm();
+      renderAll();
+    }
+
+    function injectDemoOrder() {
+      const sampleNames = ['Sophia', 'Lucas', 'Emma', 'Daniel', 'Olivia', 'Liam'];
+      const sampleCustomer = sampleNames[Math.floor(Math.random() * sampleNames.length)];
+      const sampleTable = Math.floor(Math.random() * 12) + 1;
+      const randomItems = [...MENU_CATALOG].sort(() => 0.5 - Math.random()).slice(0, 2);
+
+      const items = randomItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: Math.floor(Math.random() * 2) + 1
+      }));
+
+      const notesPool = ['Extra napkins', 'Allergy: Peanuts', 'Crispy fries please', ''];
+      const notes = notesPool[Math.floor(Math.random() * notesPool.length)];
+      const total = items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+      const orderNum = Math.floor(200 + Math.random() * 700);
+
+      const order = {
+        id: String(orderNum),
+        customer: sampleCustomer,
+        table: sampleTable,
+        notes: notes,
+        items: items,
+        total: total,
+        status: 'new',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+
+      const orders = getStoredOrders();
+      orders.unshift(order);
+
+      const audit = getStoredAudit();
+      audit.unshift({
+        id: 'aud_' + Date.now(),
+        orderId: order.id,
+        text: `Quick sample order generated for ${order.customer} (Table ${order.table})`,
+        role: 'Cashier',
+        timestamp: Date.now()
+      });
+
+      saveState(orders, audit, {
+        type: 'NEW_ORDER',
+        orderId: order.id,
+        table: order.table,
+        customer: order.customer,
+        total: order.total
+      });
+
+      selectedCustomerId = order.id;
+      playSound('new');
+      showToast(`Quick Sample #${order.id} sent to Kitchen!`, 'success');
+      renderAll();
+    }
+
+    /* =========================================================================
+     * 6. FORMATTING & STATUS BADGES
+     * ========================================================================= */
+    function formatTimeAgo(timestamp) {
+      if (!timestamp) return 'just now';
+      const sec = Math.floor((Date.now() - timestamp) / 1000);
+      if (sec < 60) return `${sec}s ago`;
+      const min = Math.floor(sec / 60);
+      if (min < 60) return `${min}m ago`;
+      const hrs = Math.floor(min / 60);
+      return `${hrs}h ${min % 60}m ago`;
+    }
+
+    function formatTimerDisplay(fromTimestamp) {
+      if (!fromTimestamp) return '00:00';
+      const elapsedSec = Math.floor((Date.now() - fromTimestamp) / 1000);
+      const m = String(Math.floor(elapsedSec / 60)).padStart(2, '0');
+      const s = String(elapsedSec % 60).padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function formatClock(timestamp) {
+      const d = new Date(timestamp);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    function getStatusBadge(status) {
+      const map = {
+        'new': { label: 'New Order', bg: 'bg-blue-500/15', text: 'text-blue-400', border: 'border-blue-500/30', icon: 'ph-sparkle' },
+        'preparing': { label: 'Preparing', bg: 'bg-amber-500/15', text: 'text-amber-400', border: 'border-amber-500/30', icon: 'ph-fire' },
+        'ready': { label: 'Ready for Pickup', bg: 'bg-emerald-500/15', text: 'text-emerald-400', border: 'border-emerald-500/30', icon: 'ph-bell-ringing' },
+        'served': { label: 'Served', bg: 'bg-purple-500/15', text: 'text-purple-400', border: 'border-purple-500/30', icon: 'ph-check-circle' },
+        'cancelled': { label: 'Cancelled', bg: 'bg-rose-500/15', text: 'text-rose-400', border: 'border-rose-500/30', icon: 'ph-x-circle' }
+      };
+      const info = map[status] || map['new'];
+      return `
+        <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full ${info.bg} ${info.text} border ${info.border}">
+          <i class="ph-bold ${info.icon}"></i>
+          ${info.label}
+        </span>
+      `;
+    }
+
+    /* =========================================================================
+     * 7. VIEW BUILDERS: CASHIER, KITCHEN, CUSTOMER & SPLIT
+     * ========================================================================= */
+    // Helper to render dish lines
+    function renderItemsSummary(items) {
+      return items.map(i => `
+        <div class="flex justify-between items-center text-xs py-0.5">
+          <span class="text-slate-200">
+            <span class="font-extrabold text-blue-400 font-mono-num mr-1">${i.quantity}x</span>
+            ${i.name}
+          </span>
+          <span class="text-slate-400 font-mono-num text-[11px]">$${(i.price * i.quantity).toFixed(2)}</span>
+        </div>
+      `).join('');
+    }
+
+    // CASHIER CARD BUILDER
+    function buildCashierCard(order) {
+      const isServed = order.status === 'served';
+      const isCancelled = order.status === 'cancelled';
+
+      return `
+        <div class="bg-slate-900 border ${order.status === 'ready' ? 'border-emerald-500/60 shadow-lg shadow-emerald-950/30' : 'border-slate-800'} rounded-2xl p-4 flex flex-col justify-between gap-3">
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-base font-extrabold text-white">Table ${order.table}</span>
+                <span class="text-xs text-slate-400 ml-1.5 font-semibold">(${order.customer})</span>
+              </div>
+              ${getStatusBadge(order.status)}
+            </div>
+
+            <div class="flex items-center justify-between text-xs text-slate-400 font-mono-num">
+              <span>Ticket #${order.id}</span>
+              <span>${formatTimeAgo(order.createdAt)}</span>
+            </div>
+
+            ${order.notes ? `
+              <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg p-2 text-xs text-amber-300">
+                <span class="font-bold">Note:</span> ${order.notes}
+              </div>
+            ` : ''}
+
+            <div class="bg-slate-950/70 rounded-xl p-2.5 border border-slate-800/80">
+              ${renderItemsSummary(order.items)}
+            </div>
+          </div>
+
+          <div class="border-t border-slate-800/80 pt-2.5 flex items-center justify-between">
+            <div>
+              <span class="text-[10px] text-slate-500 uppercase">Subtotal</span>
+              <div class="font-mono-num font-black text-emerald-400 text-sm">$${order.total.toFixed(2)}</div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              ${order.status === 'ready' ? `
+                <button onclick="advanceOrderState('${order.id}', 'served', 'Cashier')" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-600/30">
+                  <i class="ph-bold ph-hand-palm"></i>
+                  <span>Mark Served</span>
+                </button>
+              ` : ''}
+
+              ${!isServed && !isCancelled ? `
+                <button onclick="advanceOrderState('${order.id}', 'cancelled', 'Cashier')" class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 text-xs font-semibold">
+                  Cancel
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // KITCHEN KDS CARD BUILDER
+    function buildKDSCard(order) {
+      const isNew = order.status === 'new';
+      const isPrep = order.status === 'preparing';
+      const isReady = order.status === 'ready';
+
+      const prepTimer = order.preparingAt ? formatTimerDisplay(order.preparingAt) : null;
+
+      return `
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-3.5 flex flex-col gap-2.5 shadow-md hover:border-slate-700 transition-all">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="text-base font-extrabold text-white">Table ${order.table}</span>
+              <span class="text-xs font-semibold text-slate-300">(${order.customer})</span>
+              <span class="text-xs font-mono-num text-slate-500">#${order.id}</span>
+            </div>
+            <span class="text-[11px] font-mono-num text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+              ${formatTimeAgo(order.createdAt)}
+            </span>
+          </div>
+
+          ${order.notes ? `
+            <div class="bg-rose-500/10 border border-rose-500/20 rounded-lg px-2.5 py-1 text-xs text-rose-300 font-semibold flex items-center gap-1.5">
+              <i class="ph-bold ph-warning"></i>
+              <span>${order.notes}</span>
+            </div>
+          ` : ''}
+
+          <div class="bg-slate-950/80 rounded-lg p-2 border border-slate-800 space-y-1">
+            ${order.items.map(i => `
+              <div class="flex items-center justify-between text-xs py-0.5">
+                <span class="text-slate-100 font-medium">
+                  <span class="inline-block w-6 font-extrabold text-amber-400 font-mono-num">${i.quantity}x</span>
+                  ${i.name}
+                </span>
+              </div>
+            `).join('')}
+          </div>
+
+          ${isPrep && prepTimer ? `
+            <div class="text-[11px] text-amber-400 font-mono-num flex items-center gap-1">
+              <i class="ph-bold ph-timer animate-spin"></i>
+              <span>Cooking Timer: <strong class="text-white">${prepTimer}</strong></span>
+            </div>
+          ` : ''}
+
+          <div class="pt-1">
+            ${isNew ? `
+              <button onclick="advanceOrderState('${order.id}', 'preparing', 'Kitchen')" class="w-full py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-amber-600/30 transition-all">
+                <i class="ph-bold ph-fire"></i> Start Cooking (To Preparing)
+              </button>
+            ` : ''}
+
+            ${isPrep ? `
+              <button onclick="advanceOrderState('${order.id}', 'ready', 'Kitchen')" class="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/30 transition-all">
+                <i class="ph-bold ph-bell-ringing"></i> Mark Plated / Ding (To Ready)
+              </button>
+            ` : ''}
+
+            ${isReady ? `
+              <div class="text-center text-xs text-emerald-400 font-semibold py-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                Awaiting Counter / Server Pickup
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }
+
+    // CUSTOMER TRACKER CARD BUILDER (FULL VIEW)
+    function renderCustomerView(order) {
+      const card = document.getElementById('customer-tracker-card');
+      if (!card) return;
+
+      if (!order) {
+        card.innerHTML = `
+          <div class="text-center py-16 space-y-3">
+            <i class="ph ph-receipt text-4xl text-slate-600"></i>
+            <h3 class="text-base font-bold text-slate-300">No Active Order Tracked</h3>
+            <p class="text-xs text-slate-500">Create a new order in Cashier or select a ticket above to start tracking.</p>
+          </div>
+        `;
+        return;
+      }
+
+      // Determine active step index: 0 = new, 1 = preparing, 2 = ready, 3 = served
+      const stageIndex = LIFECYCLE_STAGES.indexOf(order.status);
+
+      // Dynamic Status Banner Messages
+      let bannerTitle = 'Order Placed & Confirmed';
+      let bannerSubtitle = 'The cashier registered your order. Transmitting to kitchen queue.';
+      let bannerIcon = 'ph-check-circle';
+      let bannerColor = 'from-blue-600/20 via-blue-500/10 to-transparent border-blue-500/30 text-blue-400';
+
+      if (order.status === 'preparing') {
+        bannerTitle = 'Kitchen is Actively Cooking!';
+        bannerSubtitle = 'The chefs are preparing and grilling your dishes right now.';
+        bannerIcon = 'ph-fire';
+        bannerColor = 'from-amber-600/20 via-amber-500/10 to-transparent border-amber-500/30 text-amber-400';
+      } else if (order.status === 'ready') {
+        bannerTitle = 'Ready for Pickup at the Counter!';
+        bannerSubtitle = 'Your plates are hot and ready! Please proceed to the service pass.';
+        bannerIcon = 'ph-bell-ringing';
+        bannerColor = 'from-emerald-600/25 via-emerald-500/15 to-transparent border-emerald-500/40 text-emerald-300';
+      } else if (order.status === 'served') {
+        bannerTitle = 'Order Served - Enjoy Your Meal!';
+        bannerSubtitle = 'Order completed. Thank you for dining with us today!';
+        bannerIcon = 'ph-confetti';
+        bannerColor = 'from-purple-600/20 via-purple-500/10 to-transparent border-purple-500/30 text-purple-300';
+      } else if (order.status === 'cancelled') {
+        bannerTitle = 'Order Has Been Cancelled';
+        bannerSubtitle = 'Please visit the cashier counter if you have any questions.';
+        bannerIcon = 'ph-x-circle';
+        bannerColor = 'from-rose-600/20 via-rose-500/10 to-transparent border-rose-500/30 text-rose-400';
+      }
+
+      // Stepper Steps Definition
+      const steps = [
+        { key: 'new', label: '1. New Order', desc: 'Received at checkout', icon: 'ph-receipt' },
+        { key: 'preparing', label: '2. Preparing', desc: 'Cooking in kitchen', icon: 'ph-fire' },
+        { key: 'ready', label: '3. Order Ready', desc: 'Plated & Dinged', icon: 'ph-bell-ringing' },
+        { key: 'served', label: '4. Served', desc: 'Delivered / Completed', icon: 'ph-check-circle' }
+      ];
+
+      card.innerHTML = `
+        <!-- Ticket Meta Header -->
+        <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xl font-extrabold text-white">Order #${order.id}</span>
+              <span class="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 font-semibold">Table ${order.table}</span>
+            </div>
+            <p class="text-xs text-slate-400">Placed for: <strong class="text-slate-200">${order.customer}</strong> • ${formatClock(order.createdAt)}</p>
+          </div>
+          ${getStatusBadge(order.status)}
+        </div>
+
+        <!-- Big Dynamic Status Banner -->
+        <div class="bg-gradient-to-r ${bannerColor} border rounded-2xl p-5 flex items-center gap-4 shadow-lg">
+          <div class="w-14 h-14 rounded-2xl bg-slate-900/80 border border-white/10 flex items-center justify-center text-3xl shrink-0">
+            <i class="ph-bold ${bannerIcon} ${order.status === 'preparing' ? 'animate-pulse' : ''}"></i>
+          </div>
+          <div>
+            <h3 class="text-lg font-black text-white leading-tight">${bannerTitle}</h3>
+            <p class="text-xs text-slate-300 mt-1">${bannerSubtitle}</p>
+          </div>
+        </div>
+
+        <!-- Visual 4-Step Animated Stepper Bar -->
+        <div class="py-2">
+          <div class="grid grid-cols-4 gap-2 relative">
+            ${steps.map((st, i) => {
+              const isPast = stageIndex > i;
+              const isCurrent = stageIndex === i;
+              let stepCircleBg = 'bg-slate-800 text-slate-500 border-slate-700';
+              let textColor = 'text-slate-500';
+
+              if (isPast) {
+                stepCircleBg = 'bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-600/30';
+                textColor = 'text-emerald-400';
+              } else if (isCurrent) {
+                stepCircleBg = 'bg-orange-500 text-white border-orange-400 ring-4 ring-orange-500/20 shadow-lg shadow-orange-500/40 animate-pulse-subtle';
+                textColor = 'text-orange-400 font-bold';
+              }
+
+              return `
+                <div class="flex flex-col items-center text-center relative z-10">
+                  <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl ${stepCircleBg} border flex items-center justify-center text-lg sm:text-xl transition-all duration-300">
+                    <i class="ph-bold ${st.icon}"></i>
+                  </div>
+                  <span class="text-xs ${textColor} font-semibold mt-2 truncate w-full">${st.label}</span>
+                  <span class="text-[10px] text-slate-500 hidden sm:block">${st.desc}</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <!-- Connecting progress track line -->
+          <div class="w-full bg-slate-800 h-1 rounded-full -mt-12 sm:-mt-14 mb-10 relative z-0">
+            <div class="bg-gradient-to-r from-blue-500 via-amber-500 to-emerald-500 h-1 rounded-full transition-all duration-500"
+              style="width: ${Math.min(100, Math.max(0, (stageIndex / 3) * 100))}%"></div>
+          </div>
+        </div>
+
+        <!-- Ordered Items & Receipt Breakdown -->
+        <div class="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 sm:p-5 flex flex-col gap-3">
+          <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Ordered Items</h4>
+          <div class="space-y-1.5">
+            ${renderItemsSummary(order.items)}
+          </div>
+          <div class="border-t border-slate-800 pt-2.5 flex items-center justify-between text-xs">
+            <span class="text-slate-400">Total Price (Tax incl.)</span>
+            <span class="font-extrabold text-base text-emerald-400 font-mono-num">$${order.total.toFixed(2)}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // CUSTOMER MINI COMPONENT (FOR 3-WAY SPLIT SCREEN)
+    function buildCustomerMiniCard(order) {
+      if (!order) return `<div class="text-center py-10 text-slate-500 text-xs">No active orders</div>`;
+
+      const stageIndex = LIFECYCLE_STAGES.indexOf(order.status);
+
+      return `
+        <div class="bg-slate-900 border ${order.status === 'ready' ? 'border-emerald-500/80 shadow-lg shadow-emerald-950/40' : 'border-slate-800'} rounded-2xl p-4 flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <span class="text-sm font-extrabold text-white">#${order.id} - ${order.customer}</span>
+              <span class="text-xs text-slate-500 block">Table ${order.table}</span>
+            </div>
+            ${getStatusBadge(order.status)}
+          </div>
+
+          <!-- Mini 4-Segment Progress Bar -->
+          <div class="space-y-1">
+            <div class="grid grid-cols-4 gap-1">
+              <div class="h-2 rounded ${stageIndex >= 0 ? 'bg-blue-500' : 'bg-slate-800'}"></div>
+              <div class="h-2 rounded ${stageIndex >= 1 ? 'bg-amber-500' : 'bg-slate-800'}"></div>
+              <div class="h-2 rounded ${stageIndex >= 2 ? 'bg-emerald-500' : 'bg-slate-800'}"></div>
+              <div class="h-2 rounded ${stageIndex >= 3 ? 'bg-purple-500' : 'bg-slate-800'}"></div>
+            </div>
+            <div class="flex justify-between text-[10px] text-slate-400">
+              <span>New</span>
+              <span>Prep</span>
+              <span>Ready</span>
+              <span>Served</span>
+            </div>
+          </div>
+
+          <div class="bg-slate-950/70 rounded-xl p-2 border border-slate-800 text-xs">
+            ${renderItemsSummary(order.items)}
+          </div>
+
+          <div class="flex items-center justify-between pt-1 border-t border-slate-800/80 text-xs">
+            <span class="text-slate-400 font-mono-num">$${order.total.toFixed(2)}</span>
+            <button onclick="setRole('customer'); changeCustomerActiveOrder('${order.id}')" class="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold">
+              Open Full Tracker ➔
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    /* =========================================================================
+     * 8. MAIN RENDERER & INTERFACING
+     * ========================================================================= */
+    function renderAll() {
+      const orders = getStoredOrders();
+
+      const activeOrders = orders.filter(o => o.status !== 'served' && o.status !== 'cancelled');
+      const completedOrders = orders.filter(o => o.status === 'served');
+
+      // Top Counters
+      const statActive = document.getElementById('stat-active');
+      const statCompleted = document.getElementById('stat-completed');
+      if (statActive) statActive.textContent = activeOrders.length;
+      if (statCompleted) statCompleted.textContent = completedOrders.length;
+
+      // Badges on Header buttons
+      const newOrders = orders.filter(o => o.status === 'new');
+      const prepOrders = orders.filter(o => o.status === 'preparing');
+      const readyOrders = orders.filter(o => o.status === 'ready');
+
+      const kitchenPendingCount = newOrders.length + prepOrders.length;
+      const badgeKitchen = document.getElementById('badge-kitchen-count');
+      if (badgeKitchen) {
+        badgeKitchen.textContent = kitchenPendingCount;
+        badgeKitchen.classList.toggle('hidden', kitchenPendingCount === 0);
+      }
+
+      // 1. CASHIER VIEW RENDER
+      const cashierGrid = document.getElementById('cashier-orders-grid');
+      const cashierCounter = document.getElementById('cashier-active-counter');
+      if (cashierCounter) cashierCounter.textContent = `${activeOrders.length} Active`;
+      if (cashierGrid) {
+        if (orders.length === 0) {
+          cashierGrid.innerHTML = `
+            <div class="col-span-full py-16 text-center text-slate-500 bg-slate-900/40 rounded-2xl border border-slate-800">
+              <p class="text-sm font-semibold text-slate-400">No active register tickets</p>
+              <p class="text-xs text-slate-600 mt-1">Use the panel on the left or tap '+ Quick Order' above.</p>
+            </div>
+          `;
+        } else {
+          cashierGrid.innerHTML = orders.map(buildCashierCard).join('');
+        }
+      }
+
+      // 2. KITCHEN KDS LANES RENDER
+      const laneNew = document.getElementById('kds-lane-new');
+      const lanePrep = document.getElementById('kds-lane-prep');
+      const laneReady = document.getElementById('kds-lane-ready');
+
+      if (laneNew) laneNew.innerHTML = newOrders.length ? newOrders.map(buildKDSCard).join('') : '<p class="text-xs text-slate-600 text-center py-10">No incoming orders</p>';
+      if (lanePrep) lanePrep.innerHTML = prepOrders.length ? prepOrders.map(buildKDSCard).join('') : '<p class="text-xs text-slate-600 text-center py-10">No tickets on fire</p>';
+      if (laneReady) laneReady.innerHTML = readyOrders.length ? readyOrders.map(buildKDSCard).join('') : '<p class="text-xs text-slate-600 text-center py-10">Expediter pass clear</p>';
+
+      document.getElementById('kds-stat-new').textContent = newOrders.length;
+      document.getElementById('kds-stat-prep').textContent = prepOrders.length;
+      document.getElementById('kds-stat-ready').textContent = readyOrders.length;
+
+      document.getElementById('kds-lane-new-badge').textContent = newOrders.length;
+      document.getElementById('kds-lane-prep-badge').textContent = prepOrders.length;
+      document.getElementById('kds-lane-ready-badge').textContent = readyOrders.length;
+
+      // 3. CUSTOMER VIEW RENDER
+      // Populate select dropdown
+      const custSelect = document.getElementById('customer-order-select');
+      if (custSelect) {
+        custSelect.innerHTML = orders.map(o => `
+          <option value="${o.id}" ${o.id === selectedCustomerId ? 'selected' : ''}>
+            Order #${o.id} - ${o.customer} (${o.status.toUpperCase()})
+          </option>
+        `).join('');
+      }
+
+      // If no valid selected customer, default to first active or first order
+      if (!selectedCustomerId || !orders.some(o => o.id === selectedCustomerId)) {
+        selectedCustomerId = activeOrders.length ? activeOrders[0].id : (orders[0] ? orders[0].id : null);
+      }
+      const trackedOrder = orders.find(o => o.id === selectedCustomerId);
+      renderCustomerView(trackedOrder);
+
+      // 4. SPLIT 3-WAY SIMULATOR RENDER
+      const splitCashier = document.getElementById('split-cashier-stream');
+      const splitKitchen = document.getElementById('split-kitchen-stream');
+      const splitCustomer = document.getElementById('split-customer-stream');
+      const splitKdsCounter = document.getElementById('split-kds-counter');
+
+      if (splitCashier) {
+        splitCashier.innerHTML = orders.length ? orders.slice(0, 5).map(buildCashierCard).join('') : '<p class="text-xs text-slate-600 text-center py-8">Cashier clear</p>';
+      }
+      if (splitKitchen) {
+        const kdsOrders = [...newOrders, ...prepOrders, ...readyOrders];
+        splitKitchen.innerHTML = kdsOrders.length ? kdsOrders.map(buildKDSCard).join('') : '<p class="text-xs text-slate-600 text-center py-8">Kitchen idle</p>';
+      }
+      if (splitCustomer) {
+        splitCustomer.innerHTML = activeOrders.length ? activeOrders.map(buildCustomerMiniCard).join('') : (orders[0] ? [buildCustomerMiniCard(orders[0])].join('') : '<p class="text-xs text-slate-600 text-center py-8">No customer tabs</p>');
+      }
+      if (splitKdsCounter) {
+        splitKdsCounter.textContent = `${newOrders.length + prepOrders.length} On Fire`;
+      }
+
+      renderAuditFeed();
+    }
+
+    function changeCustomerActiveOrder(id) {
+      selectedCustomerId = id;
+      const order = getStoredOrders().find(o => o.id === id);
+      renderCustomerView(order);
+    }
+
+    /* =========================================================================
+     * 9. AUDIT FEED RENDERING
+     * ========================================================================= */
+    function renderAuditFeed() {
+      const container = document.getElementById('audit-feed-list');
+      const countEl = document.getElementById('audit-count');
+      const audit = getStoredAudit();
+
+      if (countEl) countEl.textContent = `${audit.length} events`;
+      if (!container) return;
+
+      if (audit.length === 0) {
+        container.innerHTML = `<div class="text-slate-600 py-3 text-center">No logged events yet.</div>`;
+        return;
+      }
+
+      container.innerHTML = audit.slice(0, 30).map(entry => {
+        let roleBadgeClass = 'bg-slate-800 text-slate-300';
+        if (entry.role === 'Cashier') roleBadgeClass = 'bg-blue-500/20 text-blue-400';
+        else if (entry.role === 'Kitchen') roleBadgeClass = 'bg-amber-500/20 text-amber-400';
+        else if (entry.role === 'Customer') roleBadgeClass = 'bg-emerald-500/20 text-emerald-400';
+
+        return `
+          <div class="flex items-start justify-between gap-3 py-1 border-b border-slate-800/40 last:border-0 hover:bg-slate-800/30 px-2 rounded transition-colors">
+            <div class="flex items-center gap-2 overflow-hidden">
+              <span class="px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${roleBadgeClass}">${entry.role}</span>
+              <span class="text-slate-300 truncate">${entry.text}</span>
+            </div>
+            <span class="text-[10px] text-slate-500 whitespace-nowrap">${formatClock(entry.timestamp)}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleAuditFeed() {
+      auditFeedExpanded = !auditFeedExpanded;
+      const wrapper = document.getElementById('audit-feed-wrapper');
+      const caret = document.getElementById('audit-caret');
+      if (wrapper) wrapper.classList.toggle('hidden', !auditFeedExpanded);
+      if (caret) caret.style.transform = auditFeedExpanded ? 'rotate(0deg)' : 'rotate(-90deg)';
+    }
+
+    /* =========================================================================
+     * 10. ROLE SWITCHER
+     * ========================================================================= */
+    function setRole(newRole) {
+      currentRole = newRole;
+
+      document.querySelectorAll('.role-btn').forEach(btn => {
+        btn.classList.remove('bg-orange-600', 'text-white', 'shadow-md', 'shadow-orange-600/30');
+        btn.classList.add('text-slate-400');
+      });
+
+      const activeBtn = document.getElementById(`role-${newRole}-btn`);
+      if (activeBtn) {
+        activeBtn.classList.remove('text-slate-400');
+        activeBtn.classList.add('bg-orange-600', 'text-white', 'shadow-md', 'shadow-orange-600/30');
+      }
+
+      document.querySelectorAll('.role-view').forEach(view => view.classList.add('hidden'));
+
+      if (newRole === 'cashier') {
+        document.getElementById('view-cashier').classList.remove('hidden');
+      } else if (newRole === 'kitchen') {
+        document.getElementById('view-kitchen').classList.remove('hidden');
+      } else if (newRole === 'customer') {
+        document.getElementById('view-customer').classList.remove('hidden');
+      } else if (newRole === 'split') {
+        document.getElementById('view-split').classList.remove('hidden');
+      }
+
+      const roleDisplay = document.getElementById('role-display-pill');
+      if (roleDisplay) {
+        const labels = {
+          'cashier': 'Cashier / POS',
+          'kitchen': 'Kitchen KDS',
+          'customer': 'Customer Tracker',
+          'split': '3-Role Live Split'
+        };
+        roleDisplay.textContent = labels[newRole] || newRole;
+      }
+
+      renderAll();
+    }
+
+    /* =========================================================================
+     * 11. TOASTS & SAFE MODAL (No alert() or confirm())
+     * ========================================================================= */
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+
+      const toast = document.createElement('div');
+      let border = 'border-slate-700';
+      let icon = 'ph-bell';
+      let iconColor = 'text-blue-400';
+
+      if (type === 'success') {
+        border = 'border-emerald-500/40';
+        icon = 'ph-check-circle';
+        iconColor = 'text-emerald-400';
+      } else if (type === 'error') {
+        border = 'border-rose-500/40';
+        icon = 'ph-warning-octagon';
+        iconColor = 'text-rose-400';
+      }
+
+      toast.className = `flex items-center gap-2.5 bg-slate-900/95 border ${border} text-slate-100 px-4 py-3 rounded-xl shadow-2xl text-xs backdrop-blur-md transform transition-all duration-300 translate-y-[-10px] opacity-0 pointer-events-auto`;
+      toast.innerHTML = `
+        <i class="ph-bold ${icon} ${iconColor} text-base shrink-0"></i>
+        <span class="flex-1 font-semibold">${message}</span>
+      `;
+
+      container.appendChild(toast);
+      requestAnimationFrame(() => toast.classList.remove('translate-y-[-10px]', 'opacity-0'));
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-x-full');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    let activeModalCallback = null;
+    function openModal(title, desc, confirmText, callback) {
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-desc').textContent = desc;
+      const confirmBtn = document.getElementById('modal-confirm-btn');
+      confirmBtn.textContent = confirmText;
+      activeModalCallback = callback;
+      confirmBtn.onclick = () => {
+        if (activeModalCallback) activeModalCallback();
+      };
+      document.getElementById('modal-container').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('modal-container').classList.add('hidden');
+      activeModalCallback = null;
+    }
+
+    function clearAllDataModal() {
+      openModal(
+        'Reset Entire Order State?',
+        'This will erase all active tickets, timestamps, and audit records across every synchronized browser window.',
+        'Reset System',
+        () => {
+          localStorage.removeItem(STORAGE_KEY_ORDERS);
+          localStorage.removeItem(STORAGE_KEY_AUDIT);
+          if (syncChannel) {
+            syncChannel.postMessage({ type: 'RESET' });
+          }
+          closeModal();
+          showToast('All order states reset', 'info');
+          renderAll();
+        }
+      );
+    }
+
+    /* =========================================================================
+     * 12. INITIALIZATION
+     * ========================================================================= */
+    window.addEventListener('DOMContentLoaded', () => {
+      renderMenuCatalog();
+      setRole('split'); // Default to 3-role live simulator for immediate multi-perspective testing
+
+      // Pre-seed demo orders if none exist
+      const existing = getStoredOrders();
+      if (!existing || existing.length === 0) {
+        injectDemoOrder();
+      } else {
+        renderAll();
+      }
+
+      // 5-second interval to update cook timers smoothly
+      setInterval(() => {
+        renderAll();
+      }, 5000);
+    });
+  </script>
+</body>
+</html>
