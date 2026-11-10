@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SynchroDine - Real-Time Multi-Role Order Tracker</title>
+  <title>DemiDine</title>
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Phosphor Icons CDN -->
@@ -73,13 +73,13 @@
         </div>
         <div>
           <div class="flex items-center gap-2">
-            <h1 class="font-extrabold text-lg leading-tight text-white tracking-tight">SynchroDine</h1>
+            <h1 class="font-extrabold text-lg leading-tight text-white tracking-tight">DemiDine</h1>
             <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
               <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
               Mesh Active
             </span>
           </div>
-          <p class="text-xs text-slate-400">Zero-Refresh Multi-Role Order Mesh</p>
+          <p class="text-xs text-slate-400">Restaurant Order Sync</p>
         </div>
       </div>
 
@@ -419,8 +419,8 @@
     /* =========================================================================
      * 1. STATE DEFINITIONS & BROADCAST CHANNEL
      * ========================================================================= */
-    const STORAGE_KEY_ORDERS = 'synchrodine_orders_v2';
-    const STORAGE_KEY_AUDIT = 'synchrodine_audit_v2';
+    const STORAGE_KEY_ORDERS = 'DemiDine_orders_v2';
+    const STORAGE_KEY_AUDIT = 'DemiDine_audit_v2';
     const BROADCAST_CHANNEL_NAME = 'restaurant_orders_sync';
 
     // BroadcastChannel instance for zero-refresh inter-tab sync
